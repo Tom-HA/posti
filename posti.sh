@@ -1,0 +1,195 @@
+#!/usr/bin/env bash
+
+main() {
+    check_root_and_exit
+    set_variables
+    exit 0
+    set_package_manager
+    update_and_upgrade
+    package_installation
+    install_fonts
+    configure_terminal
+    docker_installation
+    minikube_installation
+    helm_installation
+    
+    echo_green "posti finished successfully"
+    exit 0
+}
+
+check_root_and_exit() {
+    if [[ $EUID -ne 0 ]]; then
+        echo "This script must be executed with root privilages"
+        exit 1
+    fi
+}
+
+set_variables() {
+    red=$(tput setaf 1)
+    green=$(tput setaf 2)
+    yellow=$(tput setaf 3)
+    reset=$(tput sgr0)
+    log="/tmp/posti.log"
+    SUDO_USER=${SUDO_USER:='root'}
+    home_dir_path=$(grep ${SUDO_USER} /etc/passwd |awk -F ':' '{print $6}')
+}
+
+echo_white() {
+    echo "$*" |tee -a ${log}
+}
+
+echo_red() {
+    echo "${red}$*${reset}" |tee -a ${log}
+}
+
+echo_yellow() {
+    echo "${yellow}$*${reset}" |tee -a ${log}
+}
+
+echo_green() {
+    echo "${green}$*${reset}" |tee -a ${log}
+}
+
+progress_spinner () {
+
+	## Loop until the PID of the last background process is not found
+	while ps aux |awk '{print $2}' |grep -E -o "$BPID" &> /dev/null; do
+		## Print text with a spinner
+		printf "\r%s in progress...  ${yellow}[|]${reset}" "$*"
+		sleep 0.1
+		printf "\r%s in progress...  ${yellow}[/]${reset}" "$*"
+		sleep 0.1
+		printf "\r%s in progress...  ${yellow}[-]${reset}" "$*"
+		sleep 0.1
+		printf "\r%s in progress...  ${yellow}[\\]${reset}" "$*"
+		sleep 0.1
+		printf "\r%s in progress...  ${yellow}[|]${reset}" "$*"
+	done
+
+	## Print a new line outside the loop so it will not interrupt with the it
+	## and will not interrupt with the upcoming text of the script
+	printf "\n\n"
+}
+
+set_package_manager() {
+    if command -v apt-get &> /dev/null; then
+        pkg_manager="apt"
+        echo_white "Detected package manager: apt"
+    
+    elif command -v dnf &> /dev/null; then
+        pkg_manager="dnf"
+        echo_white "Detected package manager: dnf"
+
+    else
+        echo_red "Could not detect package manager"
+        exit 1
+    fi
+}
+
+send_to_spinner() {
+
+    if [[ -z ${1} ]] || [[ -z ${2} ]]; then
+        echo_red "Function 'send_to_spinner' didn't receive sufficient arguments"
+    fi
+    pwd
+    ls
+    ${1} &>> ${log} &
+    BPID=$!
+    progress_spinner "${2}"
+    wait ${BPID}
+    status=$?
+    if [[ ${status} -ne 0 ]]; then
+        echo_red "Failed to perform ${1}"
+        exit 1
+    fi
+}
+
+update_and_upgrade(){
+    echo_white "Updating the system"
+
+    if [[ ${pkg_manager} == "apt" ]]; then
+        send_to_spinner "apt-get update" "System update"
+        send_to_spinner "apt-get upgrade -y" "System upgrade"
+
+    elif [[ ${pkg_manager} == "dnf" ]]; then
+        send_to_spinner dnf update -y
+    fi
+}
+
+package_installation() {
+    echo_white "Installing packages"
+    pkg_array=(git zsh plank ssh code tilix screenfetch virtualbox virtualbox-ext-pack)
+    if [[ ${pkg_manager} == "apt" ]]; then
+        export DEBIAN_FRONTEND=noninteractive
+        send_to_spinner "add-apt-repository multiverse" "Adding multiverse repo"
+        send_to_spinner "apt-get update" "System update"
+        for pkg in "${pkg_array[@]}"; do
+            send_to_spinner "apt-get install -y ${pkg}" "${pkg} installation"
+        done
+    fi
+
+    docker_installation
+}
+
+docker_installation() {
+    echo_white "Installing docker"
+    curl --silent -L -o docker_installation.sh https://get.docker.com
+    send_to_spinner "sh docker_installation.sh" "Docker installation"
+    # send_to_spinner "$(curl -L https://get.docker.com | sh)" "Docker installation"
+    usermod -aG ${SUDO_USER} docker
+
+}
+
+configure_terminal() {
+    if command -v tilix; then
+        gsettings set org.gnome.desktop.default-applications.terminal exec 'tilix'
+    fi
+    
+    usermod -s /usr/bin/zsh $SUDO_USER
+    curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
+    send_to_spinner "sh ohmyzsh.sh" "Oh My Zsh installation"
+    send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=~/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
+    send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
+    send_to_spinner "git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" "zsh-autosuggestions installation"
+    if ! [[ -s config/zshrc ]]; then
+        echo_red "Failed to find custom zshrc"
+        exit 1
+    fi
+
+    if [[ -s ${home_dir_path}/.zshrc ]]; then
+        mv ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck
+    fi
+
+    cp config/zshrc ${home_dir_path}/.zshrc
+
+    if [[ -s config/tilix.dconf ]]; then
+        echo_red "could not detect tilix.dconf"
+    fi
+
+    dconf load /com/gexperts/Tilix/ < config/tilix.dconf
+
+}
+
+install_fonts() {
+    send_to_spinner "curl -L --silent https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf -O ${home_dir_path}/'MesloLGS NF Regular.ttf'" "MesloLGS NF Regular font installation"
+    if command -v code &> /dev/null; then
+        printf '{\n"terminal.integrated.fontFamily": "MesloLGS NF"\n}\n' >> ${home_dir_path}/.config/Code/User/settings.json
+    fi
+}
+
+minikube_installation() {
+
+    send_to_spinner "curl --silent -LO https://storage.googleapis.com/kubernetes-release/release/v1.17.0/bin/linux/amd64/kubectl" "Kubectl installation"
+    chmod +x kubectl
+    mv kubectl /usr/local/bin/kubectl
+
+    send_to_spinner "curl --silent -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64" "Minikube installation"
+    chmod +x minikube
+    mv minikube /usr/local/bin/minikube
+}
+
+helm_installation() {
+    send_to_spinner "curl -L --silent https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash" "Helm 3 installation"
+}
+
+main
