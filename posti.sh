@@ -151,7 +151,11 @@ docker_installation() {
 }
 
 configure_terminal() {
-        
+
+    if ! command -v zsh; then
+        send_to_spinner "${pkg_manager} install -y zsh" "zsh installation"
+    fi
+
     usermod -s /usr/bin/zsh $SUDO_USER
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
     send_to_spinner "sh ohmyzsh.sh" "Oh My Zsh installation"
