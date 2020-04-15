@@ -3,17 +3,18 @@
 main() {
     check_root_and_exit
     set_variables
-    exit 0
+    handle_flags "$@"
     set_package_manager
     update_and_upgrade
-    package_installation
+    packages_installation
     install_fonts
     configure_terminal
+    configure_tilix
     docker_installation
     minikube_installation
     helm_installation
     
-    echo_green "posti finished successfully"
+    echo_green "Installation completed"
     exit 0
 }
 
@@ -116,7 +117,7 @@ update_and_upgrade(){
     fi
 }
 
-package_installation() {
+packages_installation() {
     echo_white "Installing packages"
     pkg_array=(git zsh plank ssh code tilix screenfetch virtualbox virtualbox-ext-pack)
     if [[ ${pkg_manager} == "apt" ]]; then
@@ -128,6 +129,8 @@ package_installation() {
         done
     fi
 
+    echo_green "Packages installtion finished successfully"
+
     docker_installation
 }
 
@@ -137,14 +140,12 @@ docker_installation() {
     send_to_spinner "sh docker_installation.sh" "Docker installation"
     # send_to_spinner "$(curl -L https://get.docker.com | sh)" "Docker installation"
     usermod -aG ${SUDO_USER} docker
-
+    
+    echo_green "Docker installation finished successfully"
 }
 
 configure_terminal() {
-    if command -v tilix; then
-        gsettings set org.gnome.desktop.default-applications.terminal exec 'tilix'
-    fi
-    
+        
     usermod -s /usr/bin/zsh $SUDO_USER
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
     send_to_spinner "sh ohmyzsh.sh" "Oh My Zsh installation"
@@ -160,14 +161,27 @@ configure_terminal() {
         mv ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck
     fi
 
-    cp config/zshrc ${home_dir_path}/.zshrc
+    sed -i "s/%HOME_USER%/${home_dir_path}/" config/zshrc
+    cp -f config/zshrc ${home_dir_path}/.zshrc
+
+    echo_green "Terminal configured"
+
+}
+
+configure_tilix() {
+
+    if command -v tilix; then
+        gsettings set org.gnome.desktop.default-applications.terminal exec 'tilix'
+    fi
 
     if [[ -s config/tilix.dconf ]]; then
-        echo_red "could not detect tilix.dconf"
+        echo_red "could not detect tilix.dconf, try to clone the repository again"
+        exit 1
     fi
 
     dconf load /com/gexperts/Tilix/ < config/tilix.dconf
 
+    echo_green "Tilix configured"
 }
 
 install_fonts() {
@@ -175,21 +189,75 @@ install_fonts() {
     if command -v code &> /dev/null; then
         printf '{\n"terminal.integrated.fontFamily": "MesloLGS NF"\n}\n' >> ${home_dir_path}/.config/Code/User/settings.json
     fi
+
+    echo_green "Font installtion finished successfully"
 }
 
 minikube_installation() {
 
-    send_to_spinner "curl --silent -LO https://storage.googleapis.com/kubernetes-release/release/v1.17.0/bin/linux/amd64/kubectl" "Kubectl installation"
+    send_to_spinner "curl --silent -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl" "Kubectl installation"
     chmod +x kubectl
     mv kubectl /usr/local/bin/kubectl
 
     send_to_spinner "curl --silent -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64" "Minikube installation"
     chmod +x minikube
     mv minikube /usr/local/bin/minikube
+
+    echo_green "Minikube installation finished successfully"
 }
 
 helm_installation() {
+
     send_to_spinner "curl -L --silent https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash" "Helm 3 installation"
+    echo_green "Helm installation finished successfully"
 }
 
-main
+print_help() {
+    printf "
+    Usage: $0 <argumant>
+
+    -d      Install docker
+    -h      Print help
+    -H      Install helm 3
+    -m      Install minikube
+    -t      Configure terminal
+"
+    
+}
+
+handle_flags() {
+
+    while getopts :d:h:H:m:t flag; do
+        case $flag in
+
+            "h")    
+                print_help
+                ;;
+
+            "d")
+                docker_installation
+                exit 0
+                ;;
+
+            "m")
+                minikube_installation
+                exit 0
+                ;;
+            
+            "H")
+                helm_installation
+                exit 0
+                ;;
+
+            "t")
+                configure_terminal
+                exit 0
+                ;;
+
+        esac
+    done
+
+}
+
+
+main "$@"
