@@ -3,9 +3,10 @@
 main() {
     check_root_and_exit
     set_variables
-    handle_flags "$@"
     set_package_manager
+    handle_flags "$@"
     update_and_upgrade
+    curl_installation
     packages_installation
     install_fonts
     configure_terminal
@@ -115,17 +116,24 @@ update_and_upgrade(){
     fi
 }
 
+curl_installation() {
+    if ! command -v curl; then
+        send_to_spinner "${pkg_manager} install -y curl" "curl installation"
+    fi
+}
+
 packages_installation() {
     echo_white "Installing packages"
     pkg_array=(git zsh plank ssh code tilix screenfetch virtualbox virtualbox-ext-pack)
     if [[ ${pkg_manager} == "apt" ]]; then
         export DEBIAN_FRONTEND=noninteractive
-        send_to_spinner "add-apt-repository multiverse" "Adding multiverse repo"
-        send_to_spinner "apt-get update" "System update"
-        for pkg in "${pkg_array[@]}"; do
-            send_to_spinner "apt-get install -y ${pkg}" "${pkg} installation"
-        done
     fi
+
+    send_to_spinner "add-apt-repository multiverse" "Adding multiverse repo"
+    send_to_spinner "apt-get update" "System update"
+    for pkg in "${pkg_array[@]}"; do
+        send_to_spinner "${pkg_manager} install -y ${pkg}" "${pkg} installation"
+    done
 
     echo_green "Packages installtion finished successfully"
 
@@ -235,15 +243,19 @@ handle_flags() {
             print_help
         
         elif [[ ${flag} =~ ^-d$ ]]; then
+            curl_installation
             docker_installation
             
         elif [[ ${flag} =~ ^-m$ ]]; then 
+            curl_installation
             minikube_installation
         
         elif [[ ${flag} =~ ^-H$ ]]; then
+            curl_installation
             helm_installation
         
         elif [[ ${flag} =~ ^-t$ ]]; then
+            curl_installation
             configure_terminal
         
         else
