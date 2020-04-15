@@ -117,7 +117,7 @@ update_and_upgrade(){
 }
 
 curl_installation() {
-    if ! command -v curl; then
+    if ! command -v curl &> /dev/null; then
         send_to_spinner "${pkg_manager} install -y curl" "curl installation"
     fi
 }
@@ -156,7 +156,7 @@ configure_terminal() {
         send_to_spinner "${pkg_manager} install -y zsh" "zsh installation"
     fi
 
-    usermod -s /usr/bin/zsh $SUDO_USER
+    usermod -s /usr/bin/zsh $SUDO_USER &>> ${log}
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
     send_to_spinner "sh ohmyzsh.sh" "Oh My Zsh installation"
     send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
@@ -171,7 +171,7 @@ configure_terminal() {
         mv ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck
     fi
 
-    sed -i "s/%HOME_USER%/${home_dir_path}/" config/zshrc
+    sed -i "s|%HOME_USER%|${home_dir_path}|" config/zshrc
     cp -f config/zshrc ${home_dir_path}/.zshrc
 
     if command -v screenfetch &> /dev/null; then
