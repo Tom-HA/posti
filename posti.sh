@@ -92,8 +92,6 @@ send_to_spinner() {
     if [[ -z ${1} ]] || [[ -z ${2} ]]; then
         echo_red "Function 'send_to_spinner' didn't receive sufficient arguments"
     fi
-    pwd
-    ls
     ${1} &>> ${log} &
     BPID=$!
     progress_spinner "${2}"
