@@ -32,7 +32,7 @@ set_variables() {
     yellow=$(tput setaf 3)
     reset=$(tput sgr0)
     log="/tmp/posti.log"
-    SUDO_USER=${SUDO_USER:='root'}
+    SUDO_USER=${SUDO_USER:=$USER}
     home_dir_path=$(grep ${SUDO_USER} /etc/passwd |awk -F ':' '{print $6}')
 }
 
@@ -152,16 +152,16 @@ docker_installation() {
 
 configure_terminal() {
 
-    if ! command -v zsh; then
+    if ! command -v zsh &> /dev/null; then
         send_to_spinner "${pkg_manager} install -y zsh" "zsh installation"
     fi
 
     usermod -s /usr/bin/zsh $SUDO_USER
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
     send_to_spinner "sh ohmyzsh.sh" "Oh My Zsh installation"
-    send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=~/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
-    send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
-    send_to_spinner "git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" "zsh-autosuggestions installation"
+    send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
+    send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
+    send_to_spinner "git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" "zsh-autosuggestions installation"
     if ! [[ -s config/zshrc ]]; then
         echo_red "Failed to find custom zshrc"
         exit 1
@@ -173,6 +173,10 @@ configure_terminal() {
 
     sed -i "s/%HOME_USER%/${home_dir_path}/" config/zshrc
     cp -f config/zshrc ${home_dir_path}/.zshrc
+
+    if command -v screenfetch &> /dev/null; then
+        echo "screenfetch -E" >> ${home_dir_path}/.zshrc
+    fi
 
     echo_green "Terminal configured"
 
@@ -190,6 +194,15 @@ configure_tilix() {
     fi
 
     dconf load /com/gexperts/Tilix/ < config/tilix.dconf
+
+    if ! grep -q 'source /etc/profile.d/vte.sh'; then
+    printf '
+# Tilix
+if [ $TILIX_ID ] || [ $VTE_VERSION ]; then
+        source /etc/profile.d/vte.sh
+fi
+' >> ${home_dir_path}/.zshrc
+    fi
 
     echo_green "Tilix configured"
 }
