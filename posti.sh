@@ -225,36 +225,34 @@ print_help() {
 
 handle_flags() {
 
-    while getopts :d:h:H:m:t flag; do
-        case $flag in
+    flags=($@)
+    if [[ -z ${flags[@]} ]]; then
+        return 0
+    fi
 
-            "h")    
-                print_help
-                ;;
-
-            "d")
-                docker_installation
-                exit 0
-                ;;
-
-            "m")
-                minikube_installation
-                exit 0
-                ;;
+    for flag in ${flags[@]}; do 
+        if [[ ${flag} =~ ^-h$ ]]; then
+            print_help
+        
+        elif [[ ${flag} =~ ^-d$ ]]; then
+            docker_installation
             
-            "H")
-                helm_installation
-                exit 0
-                ;;
-
-            "t")
-                configure_terminal
-                exit 0
-                ;;
-
-        esac
+        elif [[ ${flag} =~ ^-m$ ]]; then 
+            minikube_installation
+        
+        elif [[ ${flag} =~ ^-H$ ]]; then
+            helm_installation
+        
+        elif [[ ${flag} =~ ^-t$ ]]; then
+            configure_terminal
+        
+        else
+            echo_red "Invalid argument"
+            print_help
+            exit 1
+        fi
     done
-
+        exit 0 
 }
 
 
