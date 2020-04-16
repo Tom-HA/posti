@@ -41,7 +41,7 @@ echo_white() {
 }
 
 echo_red() {
-    echo "${red}$*${reset}" |tee -a ${log}
+    echo -e "${red}$*${reset}\n${yellow}Log file available at: ${log}${reset}" |tee -a ${log}
 }
 
 echo_yellow() {
@@ -112,7 +112,7 @@ update_and_upgrade(){
         send_to_spinner "apt-get upgrade -y" "System upgrade"
 
     elif [[ ${pkg_manager} == "dnf" ]]; then
-        send_to_spinner dnf update -y
+        send_to_spinner "dnf update -y" "System upgrade"
     fi
 }
 
@@ -156,10 +156,18 @@ configure_terminal() {
         send_to_spinner "${pkg_manager} install -y zsh" "zsh installation"
     fi
 
+    if [[ -d ${home_dir_path}/.oh-my-zsh ]] && [[ ${FORCE} == true ]]; then
+        rm -rf ${home_dir_path}/.oh-my-zsh
+    elif [[ -d ${home_dir_path}/.oh-my-zsh ]] && [[ ${FORCE} != true ]]; then
+        echo_yellow "Directory .oh-my-zsh already exists, use -f to overwrite it. Aborting installation"
+        exit 1
+    fi
+
     usermod -s /usr/bin/zsh $SUDO_USER &>> ${log}
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
     send_to_spinner "sh ohmyzsh.sh" "Oh My Zsh installation"
-    send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
+    send_to_spinner "git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/themes/powerlevel10k" "powerlevel10k installation"
+    send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
     send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
     send_to_spinner "git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" "zsh-autosuggestions installation"
     if ! [[ -s config/zshrc ]]; then
@@ -177,6 +185,8 @@ configure_terminal() {
     if command -v screenfetch &> /dev/null; then
         echo "screenfetch -E" >> ${home_dir_path}/.zshrc
     fi
+
+    chown -R ${SUDO_USER} ".zshrc*" ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh} &>> ${log}
 
     echo_green "Terminal configured"
 
@@ -196,7 +206,7 @@ configure_tilix() {
     dconf load /com/gexperts/Tilix/ < config/tilix.dconf
 
     if ! grep -q 'source /etc/profile.d/vte.sh'; then
-    printf '
+        printf '
 # Tilix
 if [ $TILIX_ID ] || [ $VTE_VERSION ]; then
         source /etc/profile.d/vte.sh
@@ -208,7 +218,15 @@ fi
 }
 
 install_fonts() {
-    send_to_spinner "curl -L --silent https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf -O ${home_dir_path}/'MesloLGS NF Regular.ttf'" "MesloLGS NF Regular font installation"
+
+    if ! [[ -d /usr/share/fonts/'Droid Sans Mono' ]]; then
+        mkdir /usr/share/fonts/'Droid Sans Mono' &>> ${log}
+    fi 
+
+    
+    send_to_spinner "curl -f -L --silent -o /usr/share/fonts/'Droid Sans Mono for Powerline Nerd Font Complete.otf' https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/DroidSansMono/complete/Droid%20Sans%20Mono%20Nerd%20Font%20Complete.otf" "Droid Sans Mono font installation"
+    
+    # https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf -O /usr/share/fonts/MesloLGS/'MesloLGS NF Regular.ttf'" "MesloLGS NF Regular font installation"
     if command -v code &> /dev/null; then
         printf '{\n"terminal.integrated.fontFamily": "MesloLGS NF"\n}\n' >> ${home_dir_path}/.config/Code/User/settings.json
     fi
@@ -237,14 +255,15 @@ helm_installation() {
 
 print_help() {
     printf "
-    Usage: $0 <argumant>
+Usage: $0 <argumant>
 
     -d      Install docker
+    -f      Force oh-my-zsh installation
     -h      Print help
     -H      Install helm 3
     -m      Install minikube
     -t      Configure terminal
-"
+    \n"
     
 }
 
@@ -262,6 +281,9 @@ handle_flags() {
         elif [[ ${flag} =~ ^-d$ ]]; then
             curl_installation
             docker_installation
+        
+        elif [[ ${flag} =~ ^-f$ ]]; then
+            FORCE="true"
             
         elif [[ ${flag} =~ ^-m$ ]]; then 
             curl_installation
@@ -272,16 +294,24 @@ handle_flags() {
             helm_installation
         
         elif [[ ${flag} =~ ^-t$ ]]; then
-            curl_installation
-            configure_terminal
+            TERMINAL_CONFIG=true
         
         else
-            echo_red "Invalid argument"
+            echo_yellow "Invalid argument"
             print_help
             exit 1
         fi
     done
-        exit 0 
+
+    # check configure_terminal after the loop to set FORCE
+    # even if the script is called with -f after -t
+    if [[ ${TERMINAL_CONFIG} == true ]]; then
+        curl_installation
+        install_fonts
+        configure_terminal
+    fi
+
+    exit 0 
 }
 
 
