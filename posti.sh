@@ -186,7 +186,7 @@ configure_terminal() {
         echo "screenfetch -E" >> ${home_dir_path}/.zshrc
     fi
 
-    chown -R ${SUDO_USER} ".zshrc*" ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh} &>> ${log}
+    chown -R ${SUDO_USER} .zshrc .zshrc.bck ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh} &>> ${log}
 
     echo_green "Terminal configured"
 
