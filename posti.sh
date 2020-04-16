@@ -179,8 +179,8 @@ configure_terminal() {
         mv ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck
     fi
 
-    sed -i "s|%HOME_USER%|${home_dir_path}|" config/zshrc
     cp -f config/zshrc ${home_dir_path}/.zshrc
+    sed -i "s|%HOME_USER%|${home_dir_path}|" ${home_dir_path}/.zshrc
 
     if command -v screenfetch &> /dev/null; then
         echo "screenfetch -E" >> ${home_dir_path}/.zshrc
