@@ -194,9 +194,11 @@ configure_terminal() {
 
 configure_tilix() {
 
-    if command -v tilix; then
-        gsettings set org.gnome.desktop.default-applications.terminal exec 'tilix'
+    if ! command -v tilix; then
+        return 0
     fi
+    
+    gsettings set org.gnome.desktop.default-applications.terminal exec 'tilix'
 
     if [[ -s config/tilix.dconf ]]; then
         echo_red "could not detect tilix.dconf, try to clone the repository again"
@@ -309,6 +311,7 @@ handle_flags() {
         curl_installation
         install_fonts
         configure_terminal
+        configure_tilix
     fi
 
     exit 0 
