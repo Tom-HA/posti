@@ -205,7 +205,7 @@ configure_tilix() {
     fi
     
     if ! command -v dconf &> /dev/null; then
-        send_to_spinner "${pkg_manager} install -y dconf-editor" "dconf-editor installation"
+        send_to_spinner "${pkg_manager} install -y dconf-cli" "dconf-cli installation"
     fi
 
     gsettings set org.gnome.desktop.default-applications.terminal exec 'tilix'
