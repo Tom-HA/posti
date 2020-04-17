@@ -34,6 +34,12 @@ set_variables() {
     log="/tmp/posti.log"
     SUDO_USER=${SUDO_USER:=$USER}
     home_dir_path=$(grep ${SUDO_USER} /etc/passwd |awk -F ':' '{print $6}')
+
+    # $r equals to $0 without '/' if exists and the script name suffix 
+    r=$(sed -E "s|/?${0##*/}||" <<< $0)
+
+    relative_path=${r:=.}
+
 }
 
 echo_white() {
@@ -166,11 +172,11 @@ configure_terminal() {
     usermod -s /usr/bin/zsh $SUDO_USER &>> ${log}
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
     send_to_spinner "sh ohmyzsh.sh" "Oh My Zsh installation"
-    send_to_spinner "git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/themes/powerlevel10k" "powerlevel10k installation"
-    send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
-    send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
-    send_to_spinner "git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" "zsh-autosuggestions installation"
-    if ! [[ -s ${0%%/${0##*/}}/config/zshrc ]]; then
+    send_to_spinner "git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/themes/powerlevel10k" "powerlevel10k installation"
+    send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
+    send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
+    send_to_spinner "git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" "zsh-autosuggestions installation"
+    if ! [[ -s ${relative_path}/config/zshrc ]]; then
         echo_red "Failed to find custom zshrc"
         exit 1
     fi
@@ -179,14 +185,14 @@ configure_terminal() {
         mv ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck
     fi
 
-    cp -f ${0%%/${0##*/}}config/zshrc ${home_dir_path}/.zshrc
+    cp -f ${relative_path}/config/zshrc ${home_dir_path}/.zshrc
     sed -i "s|%HOME_USER%|${home_dir_path}|" ${home_dir_path}/.zshrc
 
     if command -v screenfetch &> /dev/null; then
         echo "screenfetch -E" >> ${home_dir_path}/.zshrc
     fi
 
-    chown -R ${SUDO_USER} ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh} &>> ${log}
+    chown -R ${SUDO_USER} ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh} &>> ${log}
 
     echo_green "Terminal configured"
 
@@ -200,12 +206,12 @@ configure_tilix() {
     
     gsettings set org.gnome.desktop.default-applications.terminal exec 'tilix'
 
-    if [[ -s ${0%%/${0##*/}}config/tilix.dconf ]]; then
+    if [[ -s ${relative_path}/config/tilix.dconf ]]; then
         echo_red "could not detect tilix.dconf, try to clone the repository again"
         exit 1
     fi
 
-    dconf load /com/gexperts/Tilix/ < ${0%%/${0##*/}}config/tilix.dconf
+    dconf load /com/gexperts/Tilix/ < ${relative_path}/config/tilix.dconf
 
     if ! grep -q 'source /etc/profile.d/vte.sh'; then
         printf '
