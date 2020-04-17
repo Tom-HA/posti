@@ -81,7 +81,7 @@ progress_spinner () {
 
 set_package_manager() {
     if command -v apt-get &> /dev/null; then
-        pkg_manager="apt"
+        pkg_manager="apt-get"
         echo_white "Detected package manager: apt"
     
     elif command -v dnf &> /dev/null; then
