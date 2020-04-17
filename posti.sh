@@ -217,7 +217,7 @@ configure_tilix() {
 
     dconf load /com/gexperts/Tilix/ < ${relative_path}/config/tilix.dconf
 
-    if ! grep -q 'source /etc/profile.d/vte.sh'; then
+    if ! grep -q 'source /etc/profile.d/vte.sh' ${home_dir_path}/.zshrc; then
         printf '
 # Tilix
 if [ $TILIX_ID ] || [ $VTE_VERSION ]; then
