@@ -21,7 +21,7 @@ main() {
 
 check_root_and_exit() {
     if [[ $EUID -ne 0 ]]; then
-        echo "This script must be executed with root privilages"
+        echo "This script must be executed with root privileges"
         exit 1
     fi
 }
@@ -170,7 +170,7 @@ configure_terminal() {
     send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
     send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
     send_to_spinner "git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" "zsh-autosuggestions installation"
-    if ! [[ -s config/zshrc ]]; then
+    if ! [[ -s ${0%%/${0##*/}}/config/zshrc ]]; then
         echo_red "Failed to find custom zshrc"
         exit 1
     fi
@@ -179,14 +179,14 @@ configure_terminal() {
         mv ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck
     fi
 
-    cp -f config/zshrc ${home_dir_path}/.zshrc
+    cp -f ${0%%/${0##*/}}config/zshrc ${home_dir_path}/.zshrc
     sed -i "s|%HOME_USER%|${home_dir_path}|" ${home_dir_path}/.zshrc
 
     if command -v screenfetch &> /dev/null; then
         echo "screenfetch -E" >> ${home_dir_path}/.zshrc
     fi
 
-    chown -R ${SUDO_USER} .zshrc .zshrc.bck ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh} &>> ${log}
+    chown -R ${SUDO_USER} ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck ${ZSH_CUSTOM:-${home_dir_path}/.oh-my-zsh} &>> ${log}
 
     echo_green "Terminal configured"
 
@@ -200,12 +200,12 @@ configure_tilix() {
     
     gsettings set org.gnome.desktop.default-applications.terminal exec 'tilix'
 
-    if [[ -s config/tilix.dconf ]]; then
+    if [[ -s ${0%%/${0##*/}}config/tilix.dconf ]]; then
         echo_red "could not detect tilix.dconf, try to clone the repository again"
         exit 1
     fi
 
-    dconf load /com/gexperts/Tilix/ < config/tilix.dconf
+    dconf load /com/gexperts/Tilix/ < ${0%%/${0##*/}}config/tilix.dconf
 
     if ! grep -q 'source /etc/profile.d/vte.sh'; then
         printf '
@@ -257,7 +257,7 @@ helm_installation() {
 
 print_help() {
     printf "
-Usage: $0 <argumant>
+Usage: ${0##*/} <argumant>
 
     -d      Install docker
     -f      Force oh-my-zsh installation
