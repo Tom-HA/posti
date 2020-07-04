@@ -169,9 +169,11 @@ configure_terminal() {
         exit 1
     fi
 
-    usermod -s /usr/bin/zsh $SUDO_USER &>> ${log}
+    usermod -s /usr/bin/zsh ${SUDO_USER} &>> ${log}
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
-    send_to_spinner "sh ohmyzsh.sh" "Oh My Zsh installation"
+    chown ${SUDO_USER}:${SUDO_USER} ohmyzsh.sh
+    chmod 755 ohmyzsh.sh
+    send_to_spinner "su ${SUDO_USER} -c ./ohmyzsh.sh" "Oh My Zsh installation"
     send_to_spinner "git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/themes/powerlevel10k" "powerlevel10k installation"
     send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
     send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
@@ -192,7 +194,7 @@ configure_terminal() {
         echo "screenfetch -E" >> ${home_dir_path}/.zshrc
     fi
 
-    chown -R ${SUDO_USER} ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh} &>> ${log}
+    chown -R ${SUDO_USER}:${SUDO_USER} ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh} &>> ${log}
 
     echo_green "Terminal configured"
 
