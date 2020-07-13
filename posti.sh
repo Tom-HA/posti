@@ -7,6 +7,7 @@ main() {
     handle_flags "$@"
     update_and_upgrade
     curl_installation
+    code_installation
     packages_installation
     install_fonts
     configure_terminal
@@ -37,9 +38,7 @@ set_variables() {
 
     # $r equals to $0 without '/' if exists and the script name suffix 
     r=$(sed -E "s|/?${0##*/}||" <<< $0)
-
     relative_path=${r:=.}
-
 }
 
 echo_white() {
@@ -60,23 +59,23 @@ echo_green() {
 
 progress_spinner () {
 
-	## Loop until the PID of the last background process is not found
-	while ps aux |awk '{print $2}' |grep -E -o "$BPID" &> /dev/null; do
-		## Print text with a spinner
-		printf "\r%s in progress...  ${yellow}[|]${reset}" "$*"
-		sleep 0.1
-		printf "\r%s in progress...  ${yellow}[/]${reset}" "$*"
-		sleep 0.1
-		printf "\r%s in progress...  ${yellow}[-]${reset}" "$*"
-		sleep 0.1
-		printf "\r%s in progress...  ${yellow}[\\]${reset}" "$*"
-		sleep 0.1
-		printf "\r%s in progress...  ${yellow}[|]${reset}" "$*"
-	done
+    ## Loop until the PID of the last background process is not found
+    while ps aux |awk '{print $2}' |grep -E -o "$BPID" &> /dev/null; do
+        # Print text with a spinner
+        printf "\r%s in progress...  ${yellow}[|]${reset}" "$*"
+        sleep 0.1
+        printf "\r%s in progress...  ${yellow}[/]${reset}" "$*"
+	sleep 0.1
+	printf "\r%s in progress...  ${yellow}[-]${reset}" "$*"
+	sleep 0.1
+	printf "\r%s in progress...  ${yellow}[\\]${reset}" "$*"
+	sleep 0.1
+	printf "\r%s in progress...  ${yellow}[|]${reset}" "$*"
+    done
 
-	## Print a new line outside the loop so it will not interrupt with the it
-	## and will not interrupt with the upcoming text of the script
-	printf "\n\n"
+    # Print a new line outside the loop so it will not interrupt with the it
+    # and will not interrupt with the upcoming text of the script
+    printf "\n\n"
 }
 
 set_package_manager() {
@@ -113,7 +112,7 @@ send_to_spinner() {
 update_and_upgrade(){
     echo_white "Updating the system"
 
-    if [[ ${pkg_manager} == "apt" ]]; then
+    if [[ ${pkg_manager} == "apt-get" ]]; then
         send_to_spinner "apt-get update" "System update"
         send_to_spinner "apt-get upgrade -y" "System upgrade"
 
@@ -130,11 +129,11 @@ curl_installation() {
 
 packages_installation() {
     echo_white "Installing packages"
-    pkg_array=(git zsh plank ssh code tilix screenfetch virtualbox virtualbox-ext-pack)
-    if [[ ${pkg_manager} == "apt" ]]; then
+    pkg_array=(git zsh plank ssh tilix screenfetch virtualbox virtualbox-ext-pack)
+    if [[ ${pkg_manager} == "apt-get" ]]; then
         export DEBIAN_FRONTEND=noninteractive
+        echo virtualbox-ext-pack virtualbox-ext-pack/license select true | debconf-set-selections 
     fi
-
     send_to_spinner "add-apt-repository multiverse" "Adding multiverse repo"
     send_to_spinner "apt-get update" "System update"
     for pkg in "${pkg_array[@]}"; do
@@ -142,17 +141,43 @@ packages_installation() {
     done
 
     echo_green "Packages installtion finished successfully"
+}
 
-    docker_installation
+code_installation() {
+    echo_white "Installing Visual Studio Code"
+    if [[ ${pkg_manager} == "apt-get" ]]; then
+        snap_installation
+        send_to_spinner "snap install --classic code" "Visual Studio Code installation"
+	ln -sf /snap/vscode /snap/code
+	return 0
+    fi
+
+    curl h -L --silent https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+    install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/ &>> ${log}
+    echo "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list
+    send_to_spinner "apt-get update" "System update"
+    send_to_spinner "apt-get install -y code" "Installing Visual Studio Code"
+
+    echo_green "Visual Studio Code installation finished successfully"
+}
+
+snap_installation() {
+    if command -v snap &> /dev/null; then
+        echo_white "Snap already installed"
+	return 0
+    fi
+
+    echo_white "Installing snap"
+    send_to_spinner "${pkg_manager} install -y snap" "snap installation"
+    echo_green "Snap installation finished successfully"
 }
 
 docker_installation() {
     echo_white "Installing docker"
     curl --silent -L -o docker_installation.sh https://get.docker.com
     send_to_spinner "sh docker_installation.sh" "Docker installation"
-    # send_to_spinner "$(curl -L https://get.docker.com | sh)" "Docker installation"
-    usermod -aG ${SUDO_USER} docker
-    
+    usermod -aG docker ${SUDO_USER}
+    mv ${relative_path}/docker_installation.sh tmp/ &>> ${log}
     echo_green "Docker installation finished successfully"
 }
 
@@ -210,39 +235,42 @@ configure_tilix() {
         send_to_spinner "${pkg_manager} install -y dconf-cli" "dconf-cli installation"
     fi
 
-    gsettings set org.gnome.desktop.default-applications.terminal exec 'tilix'
+    su ${SUDO_USER} -c "gsettings set org.gnome.desktop.default-applications.terminal exec tilix"
 
     if ! [[ -s ${relative_path}/config/tilix.dconf ]]; then
         echo_red "could not detect tilix.dconf, try to clone the repository again"
         exit 1
     fi
 
-    dconf load /com/gexperts/Tilix/ < ${relative_path}/config/tilix.dconf
-
+    su ${SUDO_USER} -c "dconf load /com/gexperts/Tilix/ < ${relative_path}/config/tilix.dconf"
+exit
     if ! grep -q 'source /etc/profile.d/vte.sh' ${home_dir_path}/.zshrc; then
         printf '
 # Tilix
 if [ $TILIX_ID ] || [ $VTE_VERSION ]; then
-        source /etc/profile.d/vte.sh
+    source /etc/profile.d/vte.sh
 fi
 ' >> ${home_dir_path}/.zshrc
     fi
-
+exit
     echo_green "Tilix configured"
 }
 
 install_fonts() {
 
     if ! [[ -d /usr/share/fonts/'Droid Sans Mono' ]]; then
-        mkdir /usr/share/fonts/'Droid Sans Mono' &>> ${log}
+        mkdir -p /usr/share/fonts/'Droid Sans Mono' &>> ${log}
     fi 
 
     
     send_to_spinner "curl -f -L --silent -o /usr/share/fonts/'Droid Sans Mono'/'Droid Sans Mono for Powerline Nerd Font Complete.otf' https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/DroidSansMono/complete/Droid%20Sans%20Mono%20Nerd%20Font%20Complete.otf" "Droid Sans Mono font installation"
-    
+   exit 
     # https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf -O /usr/share/fonts/MesloLGS/'MesloLGS NF Regular.ttf'" "MesloLGS NF Regular font installation"
     if command -v code &> /dev/null; then
-        printf '{\n"terminal.integrated.fontFamily": "MesloLGS NF"\n}\n' >> ${home_dir_path}/.config/Code/User/settings.json
+        if ! [[ -d ${home_dir_path}/.config/Code/User ]]; then
+	    mkdir -p ${home_dir_path}/.config/Code/User
+	fi 
+        printf '{\n"terminal.integrated.fontFamily": "Droid Sans Mono"\n}\n' > ${home_dir_path}/.config/Code/User/settings.json
     fi
 
     echo_green "Font installtion finished successfully"
@@ -262,8 +290,9 @@ minikube_installation() {
 }
 
 helm_installation() {
-
-    send_to_spinner "curl -L --silent https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash" "Helm 3 installation"
+    curl -L --silent https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 -o get-helm-3
+    send_to_spinner "bash get-helm-3" "Helm 3 installation"
+    mv ${relative_path}/get-helm-3 /tmp/ &>> ${log}
     echo_green "Helm installation finished successfully"
 }
 
@@ -291,22 +320,26 @@ handle_flags() {
     for flag in ${flags[@]}; do 
         if [[ ${flag} =~ ^-h$ ]]; then
             print_help
+	    exit 0
         
         elif [[ ${flag} =~ ^-d$ ]]; then
             curl_installation
             docker_installation
-        
+	    exit 0
+
         elif [[ ${flag} =~ ^-f$ ]]; then
             FORCE="true"
             
         elif [[ ${flag} =~ ^-m$ ]]; then 
             curl_installation
             minikube_installation
-        
+            exit 0
+
         elif [[ ${flag} =~ ^-H$ ]]; then
             curl_installation
             helm_installation
-        
+            exit 0
+
         elif [[ ${flag} =~ ^-t$ ]]; then
             TERMINAL_CONFIG=true
         
@@ -324,9 +357,9 @@ handle_flags() {
         install_fonts
         configure_terminal
         configure_tilix
+	exit 0
     fi
 
-    exit 0 
 }
 
 
