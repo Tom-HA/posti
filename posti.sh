@@ -10,6 +10,7 @@ main() {
     code_installation
     packages_installation
     install_fonts
+    configre_vscode_fonts
     configure_terminal
     configure_tilix
     docker_installation
@@ -98,7 +99,7 @@ send_to_spinner() {
     if [[ -z ${1} ]] || [[ -z ${2} ]]; then
         echo_red "Function 'send_to_spinner' didn't receive sufficient arguments"
     fi
-    ${1} &>> ${log} &
+    bash -c "${1}" &>> ${log} &
     BPID=$!
     progress_spinner "${2}"
     wait ${BPID}
@@ -148,8 +149,8 @@ code_installation() {
     if [[ ${pkg_manager} == "apt-get" ]]; then
         snap_installation
         send_to_spinner "snap install --classic code" "Visual Studio Code installation"
-	ln -sf /snap/vscode /snap/code
-	return 0
+        ln -sf /snap/vscode /snap/code
+        return 0
     fi
 
     curl h -L --silent https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
@@ -241,9 +242,8 @@ configure_tilix() {
         echo_red "could not detect tilix.dconf, try to clone the repository again"
         exit 1
     fi
-
-    su ${SUDO_USER} -c "dconf load /com/gexperts/Tilix/ < ${relative_path}/config/tilix.dconf"
-exit
+    echo tilix
+    su ${SUDO_USER} -c "exec dbus-run-session -- bash -c \"dconf load /com/gexperts/Tilix/ < ${relative_path}/config/tilix.dconf\"" &>> ${log}
     if ! grep -q 'source /etc/profile.d/vte.sh' ${home_dir_path}/.zshrc; then
         printf '
 # Tilix
@@ -252,7 +252,6 @@ if [ $TILIX_ID ] || [ $VTE_VERSION ]; then
 fi
 ' >> ${home_dir_path}/.zshrc
     fi
-exit
     echo_green "Tilix configured"
 }
 
@@ -261,19 +260,29 @@ install_fonts() {
     if ! [[ -d /usr/share/fonts/'Droid Sans Mono' ]]; then
         mkdir -p /usr/share/fonts/'Droid Sans Mono' &>> ${log}
     fi 
+    send_to_spinner "curl -f -s -L https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/DroidSansMono/complete/Droid%20Sans%20Mono%20Nerd%20Font%20Complete%20Mono.otf -o /usr/share/fonts/Droid\ Sans\ Mono/Droid\ Sans\ Mono\ for\ Powerline\ Nerd\ Font\ Complete.otf" "Droid Sans Mono font installation"
 
-    
-    send_to_spinner "curl -f -L --silent -o /usr/share/fonts/'Droid Sans Mono'/'Droid Sans Mono for Powerline Nerd Font Complete.otf' https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/DroidSansMono/complete/Droid%20Sans%20Mono%20Nerd%20Font%20Complete.otf" "Droid Sans Mono font installation"
-   exit 
-    # https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf -O /usr/share/fonts/MesloLGS/'MesloLGS NF Regular.ttf'" "MesloLGS NF Regular font installation"
-    if command -v code &> /dev/null; then
-        if ! [[ -d ${home_dir_path}/.config/Code/User ]]; then
-	    mkdir -p ${home_dir_path}/.config/Code/User
-	fi 
-        printf '{\n"terminal.integrated.fontFamily": "Droid Sans Mono"\n}\n' > ${home_dir_path}/.config/Code/User/settings.json
-    fi
+    if ! [[ -d /usr/share/fonts/MesloLGS ]]; then
+        mkdir -p /usr/share/fonts/MesloLGS &>> ${log}
+    fi 
+    send_to_spinner "curl -f -s -L https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf -o /usr/share/fonts/MesloLGS/MesloLGS\ NF\ Regular.ttf" "MesloLGS NF Regular font installation"
 
     echo_green "Font installtion finished successfully"
+}
+
+configre_vscode_fonts() {
+    echo_white "Configuring VScode fonts"
+
+    if ! command -v code &> /dev/null; then
+        return 0
+    fi 
+
+    if ! [[ -d ${home_dir_path}/.config/Code/User ]]; then
+	    mkdir -p ${home_dir_path}/.config/Code/User
+    fi
+    printf "{\n\"terminal.integrated.fontFamily\": \"'DroidSansMono Nerd Font Mono'\"\n}\n" > ${home_dir_path}/.config/Code/User/settings.json
+    chown -R ${SUDO_USER} ${home_dir_path}/.config/Code
+
 }
 
 minikube_installation() {
@@ -305,7 +314,8 @@ Usage: ${0##*/} <argumant>
     -h      Print help
     -H      Install helm 3
     -m      Install minikube
-    -t      Configure terminal
+    -t      Configure fonts and terminal extensions
+    -z      Configure zsh extensions
     \n"
     
 }
@@ -342,6 +352,10 @@ handle_flags() {
 
         elif [[ ${flag} =~ ^-t$ ]]; then
             TERMINAL_CONFIG=true
+
+
+        elif [[ ${flag} =~ ^-z$ ]]; then
+            ZSH_CONFIG=true
         
         else
             echo_yellow "Invalid argument"
@@ -355,9 +369,15 @@ handle_flags() {
     if [[ ${TERMINAL_CONFIG} == true ]]; then
         curl_installation
         install_fonts
+        configre_vscode_fonts
         configure_terminal
         configure_tilix
-	exit 0
+	    exit 0
+    fi
+
+    if ${ZSH_CONFIG} == true ]]; then
+        configure_terminal
+        exit 0
     fi
 
 }
