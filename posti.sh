@@ -88,6 +88,10 @@ set_package_manager() {
         pkg_manager="dnf"
         echo_white "Detected package manager: dnf"
 
+    elif command -v brew &> /dev/null; then
+        pkg_manager="brew"
+        echo_white "Detected package manager: dnf"
+
     else
         echo_red "Could not detect package manager"
         exit 1
@@ -122,7 +126,7 @@ update_and_upgrade(){
     fi
 }
 
-curl_installation() {
+curl_installation() { 
     if ! command -v curl &> /dev/null; then
         send_to_spinner "${pkg_manager} install -y curl" "curl installation"
     fi
@@ -134,9 +138,10 @@ packages_installation() {
     if [[ ${pkg_manager} == "apt-get" ]]; then
         export DEBIAN_FRONTEND=noninteractive
         echo virtualbox-ext-pack virtualbox-ext-pack/license select true | debconf-set-selections 
+        send_to_spinner "add-apt-repository multiverse" "Adding multiverse repo"
+        send_to_spinner "apt-get update" "System update"
     fi
-    send_to_spinner "add-apt-repository multiverse" "Adding multiverse repo"
-    send_to_spinner "apt-get update" "System update"
+
     for pkg in "${pkg_array[@]}"; do
         send_to_spinner "${pkg_manager} install -y ${pkg}" "${pkg} installation"
     done
@@ -242,8 +247,9 @@ configure_tilix() {
         echo_red "could not detect tilix.dconf, try to clone the repository again"
         exit 1
     fi
-    echo tilix
-    su ${SUDO_USER} -c "exec dbus-run-session -- bash -c \"dconf load /com/gexperts/Tilix/ < ${relative_path}/config/tilix.dconf\"" &>> ${log}
+    export tlilx_dconf_full_path="$(readlink -f ${relative_path}/config/tilix.dconf)"
+    runuser -l ${SUDO_USER} -c "exec dbus-run-session -- bash -c 'dconf load /com/gexperts/Tilix/ < ${tlilx_dconf_full_path}'" &>> ${log}
+
     if ! grep -q 'source /etc/profile.d/vte.sh' ${home_dir_path}/.zshrc; then
         printf '
 # Tilix
@@ -314,59 +320,70 @@ Usage: ${0##*/} <argumant>
     -h      Print help
     -H      Install helm 3
     -m      Install minikube
-    -t      Configure fonts and terminal extensions
-    -z      Configure zsh extensions
+    -t      Configure termianl with zsh extensions
+    -T      Configure Tilix
     \n"
     
 }
 
 handle_flags() {
+    while getopts ":hdfHtT" o; do
+        case "${o}" in
+            d)
+                if [[ ${pkg_manager} == "brew" ]]; then
+                    echo_yellow "This operation is not supported with brew"
+                    exit 0
+                fi
 
-    flags=($@)
-    if [[ -z ${flags[@]} ]]; then
-        return 0
-    fi
+                curl_installation
+                docker_installation
+                ;;
+            h)
+                print_help
+                exit 0
+                ;;
+            f)
+                FORCE="true"
+                ;;
+            m)
+                if [[ ${pkg_manager} == "brew" ]]; then
+                    echo_yellow "This operation is not supported with brew"
+                    exit 0
+                fi
 
-    for flag in ${flags[@]}; do 
-        if [[ ${flag} =~ ^-h$ ]]; then
-            print_help
-	    exit 0
-        
-        elif [[ ${flag} =~ ^-d$ ]]; then
-            curl_installation
-            docker_installation
-	    exit 0
+                curl_installation
+                minikube_installation
+                exit 0
+                ;;
 
-        elif [[ ${flag} =~ ^-f$ ]]; then
-            FORCE="true"
+            t)
+                TERMINAL_CONFIG=true
+                ;;
             
-        elif [[ ${flag} =~ ^-m$ ]]; then 
-            curl_installation
-            minikube_installation
-            exit 0
-
-        elif [[ ${flag} =~ ^-H$ ]]; then
-            curl_installation
-            helm_installation
-            exit 0
-
-        elif [[ ${flag} =~ ^-t$ ]]; then
-            TERMINAL_CONFIG=true
-
-
-        elif [[ ${flag} =~ ^-z$ ]]; then
-            ZSH_CONFIG=true
-        
-        else
-            echo_yellow "Invalid argument"
-            print_help
-            exit 1
-        fi
+            T)
+                TILIX_CONFIG=true
+                ;;
+            H)
+                if [[ ${pkg_manager} == "brew" ]]; then
+                    echo_yellow "This operation is not supported with brew"
+                    exit 0
+                fi
+                
+                curl_installation
+                helm_installation
+                exit 0
+                ;;
+            *)
+                echo_yellow "Invalid argument"
+                print_help
+                exit 1
+                ;;
+        esac
     done
+    shift $((OPTIND-1))
 
-    # check configure_terminal after the loop to set FORCE
-    # even if the script is called with -f after -t
-    if [[ ${TERMINAL_CONFIG} == true ]]; then
+    if [[ ${TILIX_CONFIG} == true ]]; then
+        
         curl_installation
         install_fonts
         configre_vscode_fonts
@@ -375,7 +392,7 @@ handle_flags() {
 	    exit 0
     fi
 
-    if ${ZSH_CONFIG} == true ]]; then
+    if [[ ${TERMINAL_CONFIG} == true ]]; then
         configure_terminal
         exit 0
     fi
