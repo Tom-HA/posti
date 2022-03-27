@@ -134,7 +134,6 @@ curl_installation() {
 
 packages_installation() {
     echo_white "Installing packages"
-
     pkg_array=(git zsh plank ssh tilix screenfetch virtualbox virtualbox-ext-pack)
     if [[ ${pkg_manager} == "apt-get" ]]; then
         export DEBIAN_FRONTEND=noninteractive
@@ -393,7 +392,7 @@ handle_flags() {
 	    exit 0
     fi
 
-    if ${TERMINAL_CONFIG} == true ]]; then
+    if [[ ${TERMINAL_CONFIG} == true ]]; then
         configure_terminal
         exit 0
     fi
