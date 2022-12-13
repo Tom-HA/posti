@@ -9,12 +9,19 @@ main() {
     curl_installation
     code_installation
     packages_installation
+
+    if [[ ${pkg_manager} == "brew" ]]; then
+        echo_green "Installation completed"
+        exit 0
+    fi
+
     install_fonts
     configre_vscode_fonts
     configure_terminal
+    configure_zshrc
     configure_tilix
     docker_installation
-    minikube_installation
+    # minikube_installation
     helm_installation
     
     echo_green "Installation completed"
@@ -134,11 +141,12 @@ curl_installation() {
 
 packages_installation() {
     echo_white "Installing packages"
-    pkg_array=(git zsh plank ssh tilix screenfetch virtualbox virtualbox-ext-pack)
+    pkg_array=(git zsh ssh tilix screenfetch virtualbox virtualbox-ext-pack copyq)
     if [[ ${pkg_manager} == "apt-get" ]]; then
         export DEBIAN_FRONTEND=noninteractive
         echo virtualbox-ext-pack virtualbox-ext-pack/license select true | debconf-set-selections 
         send_to_spinner "add-apt-repository multiverse" "Adding multiverse repo"
+        send_to_spinner "add-apt-repository ppa:hluk/copyq" "Adding copyq repo"
         send_to_spinner "apt-get update" "System update"
     fi
 
@@ -209,26 +217,43 @@ configure_terminal() {
     send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
     send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
     send_to_spinner "git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" "zsh-autosuggestions installation"
-    if ! [[ -s ${relative_path}/config/zshrc ]]; then
-        echo_red "Failed to find custom zshrc"
-        exit 1
-    fi
-
-    if [[ -s ${home_dir_path}/.zshrc ]]; then
-        mv ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck
-    fi
-
-    cp -f ${relative_path}/config/zshrc ${home_dir_path}/.zshrc
-    sed -i "s|%HOME_USER%|${home_dir_path}|" ${home_dir_path}/.zshrc
-
-    if command -v screenfetch &> /dev/null; then
-        echo "screenfetch -E" >> ${home_dir_path}/.zshrc
-    fi
-
-    chown -R ${SUDO_USER}:${SUDO_USER} ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh} &>> ${log}
 
     echo_green "Terminal configured"
 
+}
+
+configure_zshrc() {
+    echo_white "Configuring zshrc"
+    if [[ -s ${home_dir_path}/.zshrc ]]; then
+        if ! [[ -f ${home_dir_path}/.zshrc.bck ]]; then
+            cp ${home_dir_path}/.zshrc ${home_dir_path}/.zshrc.bck
+        fi
+    fi
+
+    sed -i "s|^ZSH_THEME=.*|ZSH_THEME=powerlevel10k/powerlevel10k|" ${home_dir_path}/.zshrc
+
+    if ! grep -q "alias k=" ${home_dir_path}/.zshrc; then
+        echo 'alias k="kubectl"' >> ${home_dir_path}/.zshrc
+    fi
+
+    if ! grep -q "alias d=" ${home_dir_path}/.zshrc; then
+        echo 'alias d="docker"' >> ${home_dir_path}/.zshrc
+    fi
+
+    if ! grep -q "alias dc=" ${home_dir_path}/.zshrc; then
+        echo 'alias dc="docker compose"' >> ${home_dir_path}/.zshrc
+    fi
+
+    if ! grep -q "alias t=" ${home_dir_path}/.zshrc; then
+        echo 'alias t="terraform"' >> ${home_dir_path}/.zshrc
+    fi
+
+    if command -v screenfetch &> /dev/null; then
+        if ! grep -q "screenfetch -E" ${home_dir_path}/.zshrc; then
+            echo "screenfetch -E" >> ${home_dir_path}/.zshrc
+        fi
+    fi
+    
 }
 
 configure_tilix() {
@@ -241,7 +266,15 @@ configure_tilix() {
         send_to_spinner "${pkg_manager} install -y dconf-cli" "dconf-cli installation"
     fi
 
-    su ${SUDO_USER} -c "gsettings set org.gnome.desktop.default-applications.terminal exec tilix"
+    # su ${SUDO_USER} -c "gsettings set org.gnome.desktop.default-applications.terminal exec tilix"
+
+    tilix_alternative="$(update-alternatives --list x-terminal-emulator |grep tilix)"
+
+    echo_white "Setting Tilix as the default terminal"
+    if ! update-alternatives --set x-terminal-emulator ${tilix_alternative:?} &>> ${log}; then
+        echo_red "could not set Tilix as the default terminal"
+        exit 1
+    fi
 
     if ! [[ -s ${relative_path}/config/tilix.dconf ]]; then
         echo_red "could not detect tilix.dconf, try to clone the repository again"
@@ -327,7 +360,7 @@ Usage: ${0##*/} <argumant>
 }
 
 handle_flags() {
-    while getopts ":hdfHtT" o; do
+    while getopts ":hdfHtTz" o; do
         case "${o}" in
             d)
                 if [[ ${pkg_manager} == "brew" ]]; then
@@ -352,7 +385,7 @@ handle_flags() {
                 fi
 
                 curl_installation
-                minikube_installation
+                # minikube_installation
                 exit 0
                 ;;
 
@@ -373,6 +406,10 @@ handle_flags() {
                 helm_installation
                 exit 0
                 ;;
+            z)
+                configure_zshrc
+                exit 0
+                ;;
             *)
                 echo_yellow "Invalid argument"
                 print_help
@@ -388,12 +425,14 @@ handle_flags() {
         install_fonts
         configre_vscode_fonts
         configure_terminal
+        configure_zshrc
         configure_tilix
 	    exit 0
     fi
 
     if [[ ${TERMINAL_CONFIG} == true ]]; then
         configure_terminal
+        configure_zshrc
         exit 0
     fi
 
