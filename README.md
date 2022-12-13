@@ -1,2 +1,2 @@
 # posti
-New post installer for Ubuntu and Fedora baserd distributions
+New post installer for Ubuntu and Fedora based distributions
