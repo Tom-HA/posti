@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
 main() {
-    check_root_and_exit
     set_variables
     set_package_manager
     handle_flags "$@"
@@ -351,10 +350,10 @@ Usage: ${0##*/} <argumant>
     -d      Install docker
     -f      Force oh-my-zsh installation
     -h      Print help
-    -H      Install helm 3
-    -m      Install minikube
+    -H      Install Helm 3
     -t      Configure termianl with zsh extensions
     -T      Configure Tilix
+    -z      Configure .zshrc
     \n"
     
 }
@@ -377,16 +376,6 @@ handle_flags() {
                 ;;
             f)
                 FORCE="true"
-                ;;
-            m)
-                if [[ ${pkg_manager} == "brew" ]]; then
-                    echo_yellow "This operation is not supported with brew"
-                    exit 0
-                fi
-
-                curl_installation
-                # minikube_installation
-                exit 0
                 ;;
 
             t)
@@ -418,6 +407,8 @@ handle_flags() {
         esac
     done
     shift $((OPTIND-1))
+
+    check_root_and_exit
 
     if [[ ${TILIX_CONFIG} == true ]]; then
         

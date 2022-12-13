@@ -22,3 +22,19 @@ cd posti
 ```sh
 sudo bash posti.sh
 ```
+
+## Usage
+
+Please note that this script needs to be executed with root privilages
+
+```sh
+Usage: posti.sh <argumant>
+
+    -d      Install docker
+    -f      Force oh-my-zsh installation
+    -h      Print help
+    -H      Install Helm 3
+    -t      Configure termianl with zsh extensions
+    -T      Configure Tilix
+    -z      Configure .zshrc
+```
