@@ -203,8 +203,8 @@ configure_terminal() {
     if [[ -d ${home_dir_path}/.oh-my-zsh ]] && [[ ${FORCE} == true ]]; then
         rm -rf ${home_dir_path}/.oh-my-zsh
     elif [[ -d ${home_dir_path}/.oh-my-zsh ]] && [[ ${FORCE} != true ]]; then
-        echo_yellow "Directory .oh-my-zsh already exists, use -f to overwrite it. Aborting installation"
-        exit 1
+        echo_yellow "Directory .oh-my-zsh already exists, use -f to overwrite the configuration"
+        return 0
     fi
 
     usermod -s /usr/bin/zsh ${SUDO_USER} &>> ${log}
@@ -230,6 +230,7 @@ configure_zshrc() {
     fi
 
     sed -i "s|^ZSH_THEME=.*|ZSH_THEME=powerlevel10k/powerlevel10k|" ${home_dir_path}/.zshrc
+    sed -i "s|^plugins=.*|plugins=(git aws kubectl zsh-completions zsh-syntax-highlighting zsh-autosuggestions)|" ${home_dir_path}/.zshrc
 
     if ! grep -q "alias k=" ${home_dir_path}/.zshrc; then
         echo 'alias k="kubectl"' >> ${home_dir_path}/.zshrc
@@ -318,7 +319,12 @@ configre_vscode_fonts() {
     if ! [[ -d ${home_dir_path}/.config/Code/User ]]; then
 	    mkdir -p ${home_dir_path}/.config/Code/User
     fi
-    printf "{\n\"terminal.integrated.fontFamily\": \"'DroidSansMono Nerd Font Mono'\"\n}\n" > ${home_dir_path}/.config/Code/User/settings.json
+    printf '{
+    "terminal.integrated.fontFamily": "MesloLGS NF Regular",
+    "editor.fontFamily": "MesloLGS NF Regular, monospace, monospace",
+    "editor.fontLigatures": false,
+    "terminal.integrated.defaultProfile.linux": "zsh"
+}' > ${home_dir_path}/.config/Code/User/settings.json
     chown -R ${SUDO_USER} ${home_dir_path}/.config/Code
 
 }
