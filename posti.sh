@@ -2,7 +2,6 @@
 
 main() {
     set_variables
-    set_package_manager
     handle_flags "$@"
     update_and_upgrade
     curl_installation
@@ -20,6 +19,7 @@ main() {
     configure_zshrc
     configure_tilix
     docker_installation
+    kubectl_installation
     # minikube_installation
     helm_installation
     
@@ -88,15 +88,29 @@ progress_spinner () {
 set_package_manager() {
     if command -v apt-get &> /dev/null; then
         pkg_manager="apt-get"
+        pkg_manager_args=("install" "-y")
         echo_white "Detected package manager: apt"
     
     elif command -v dnf &> /dev/null; then
         pkg_manager="dnf"
+        pkg_manager_args=("install" "-y")
         echo_white "Detected package manager: dnf"
 
     elif command -v brew &> /dev/null; then
         pkg_manager="brew"
-        echo_white "Detected package manager: dnf"
+        pkg_manager_args=("install" "-y")
+        echo_white "Detected package manager: brew"
+
+
+    elif command -v yay &> /dev/null; then
+        pkg_manager="yay"
+        pkg_manager_args=("-S" "--noconfirm")
+        read -sp "Please enter [sudo] password: " sudo_pass
+        if ! runuser -l ${SUDO_USER} -c "sudo -S echo test &> /dev/null <<< $(echo ${sudo_pass})"; then
+            echo_red "Bad password"
+            exit 1
+        fi
+	    echo_white "Detected package manager: yay"
 
     else
         echo_red "Could not detect package manager"
@@ -129,48 +143,89 @@ update_and_upgrade(){
 
     elif [[ ${pkg_manager} == "dnf" ]]; then
         send_to_spinner "dnf update -y" "System upgrade"
+
+    elif [[ ${pkg_manager} == "yay" ]]; then
+        send_to_spinner "pacman -Syu --noconfirm" "System upgrade"
     fi
 }
 
 curl_installation() { 
     if ! command -v curl &> /dev/null; then
-        send_to_spinner "${pkg_manager} install -y curl" "curl installation"
+        send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} curl" "curl installation"
     fi
 }
 
 packages_installation() {
     echo_white "Installing packages"
-    pkg_array=(git zsh ssh tilix screenfetch virtualbox virtualbox-ext-pack copyq)
+    generic_pkgs=(git zsh ncdu tilix screenfetch virtualbox copyq)
+    ubuntu_pkgs=(ssh virtualbox-ext-pack)
+    arch_pkgs=(openssh firefox vlc discord docker)
+
+    for pkg in "${generic_pkgs[@]}"; do
+        if command -v ${pkg} &> /dev/null; then
+            continue
+        fi
+        send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} ${pkg}" "${pkg} installation"
+    done
+
     if [[ ${pkg_manager} == "apt-get" ]]; then
         export DEBIAN_FRONTEND=noninteractive
         echo virtualbox-ext-pack virtualbox-ext-pack/license select true | debconf-set-selections 
         send_to_spinner "add-apt-repository multiverse" "Adding multiverse repo"
         send_to_spinner "add-apt-repository ppa:hluk/copyq" "Adding copyq repo"
         send_to_spinner "apt-get update" "System update"
-    fi
 
-    for pkg in "${pkg_array[@]}"; do
-        send_to_spinner "${pkg_manager} install -y ${pkg}" "${pkg} installation"
-    done
+        for pkg in "${ubuntu_pkgs[@]}"; do
+            if command -v ${pkg} &> /dev/null; then
+                continue
+            fi
+            send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} ${pkg}" "${pkg} installation"
+        done
+
+    elif [[ ${pkg_manager} == "yay" ]]; then
+        for pkg in "${arch_pkgs[@]}"; do
+            if command -v ${pkg} &> /dev/null; then
+                continue
+            fi
+            send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} ${pkg}" "${pkg} installation"
+        done
+	    send_to_spinner "runuser -l ${SUDO_USER} -c '${pkg_manager} ${pkg_manager_args[*]} --sudoflags -S virtualbox-ext-oracle <<<$(echo ${sudo_pass})'" "Installing virtualbox-ext-oracle"
+
+    fi
 
     echo_green "Packages installtion finished successfully"
 }
 
 code_installation() {
+    if command -v code &> /dev/null; then
+        return 0
+    fi
+
     echo_white "Installing Visual Studio Code"
     if [[ ${pkg_manager} == "apt-get" ]]; then
         snap_installation
         send_to_spinner "snap install --classic code" "Visual Studio Code installation"
         ln -sf /snap/vscode /snap/code
         return 0
+    
+    elif [[ ${pkg_manager} == "dnf" ]]; then
+        echo_yellow "Visual Studio code installation is not supported for 'dnf' package manager"
+        return 0
+    
+    elif [[ ${pkg_manager} == "brew" ]]; then
+        echo_yellow "Visual Studio code installation is not supported for 'brew' package manager"
+        return 0
+    elif [[ ${pkg_manager} == "yay" ]]; then
+	    send_to_spinner "runuser -l ${SUDO_USER} -c '${pkg_manager} ${pkg_manager_args[*]} --sudoflags -S visual-studio-code-bin <<<$(echo ${sudo_pass})'" "Installing Visual Studio Code"
     fi
 
-    curl h -L --silent https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
-    install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/ &>> ${log}
-    echo "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list
-    send_to_spinner "apt-get update" "System update"
-    send_to_spinner "apt-get install -y code" "Installing Visual Studio Code"
 
+    # curl h -L --silent https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+    # install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/ &>> ${log}
+    # echo "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list
+    # send_to_spinner "apt-get update" "System update"
+    # send_to_spinner "apt-get install -y code" "Installing Visual Studio Code"
+    
     echo_green "Visual Studio Code installation finished successfully"
 }
 
@@ -186,6 +241,9 @@ snap_installation() {
 }
 
 docker_installation() {
+    if [[ ${pkg_manager} == "yay" ]]; then
+        return 0
+    fi
     echo_white "Installing docker"
     curl --silent -L -o docker_installation.sh https://get.docker.com
     send_to_spinner "sh docker_installation.sh" "Docker installation"
@@ -194,10 +252,27 @@ docker_installation() {
     echo_green "Docker installation finished successfully"
 }
 
+kubectl_installation() {
+    if command -v kubectl &> /dev/null; then
+        return 0
+    fi
+
+    echo_white "Installing kubectl"
+    curl -sLO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" &>> ${log}
+    if ! [[ -s ./kubectl ]]; then
+        echo_red "Failed to download kubectl"
+        exit 1
+    fi
+
+    chmod 755 kubectl
+    mv kubectl /usr/local/bin
+    echo_green "kubectl installation finished successfully"
+}
+
 configure_terminal() {
 
     if ! command -v zsh &> /dev/null; then
-        send_to_spinner "${pkg_manager} install -y zsh" "zsh installation"
+        send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} zsh" "zsh installation"
     fi
 
     if [[ -d ${home_dir_path}/.oh-my-zsh ]] && [[ ${FORCE} == true ]]; then
@@ -263,17 +338,18 @@ configure_tilix() {
     fi
     
     if ! command -v dconf &> /dev/null; then
-        send_to_spinner "${pkg_manager} install -y dconf-cli" "dconf-cli installation"
+        send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} dconf-cli" "dconf-cli installation"
     fi
 
     # su ${SUDO_USER} -c "gsettings set org.gnome.desktop.default-applications.terminal exec tilix"
+    if command -v update-alternatives &> /dev/null; then
+        tilix_alternative="$(update-alternatives --list x-terminal-emulator |grep tilix)"
 
-    tilix_alternative="$(update-alternatives --list x-terminal-emulator |grep tilix)"
-
-    echo_white "Setting Tilix as the default terminal"
-    if ! update-alternatives --set x-terminal-emulator ${tilix_alternative:?} &>> ${log}; then
-        echo_red "could not set Tilix as the default terminal"
-        exit 1
+        echo_white "Setting Tilix as the default terminal"
+        if ! update-alternatives --set x-terminal-emulator ${tilix_alternative:?} &>> ${log}; then
+            echo_red "could not set Tilix as the default terminal"
+            exit 1
+        fi
     fi
 
     if ! [[ -s ${relative_path}/config/tilix.dconf ]]; then
@@ -372,7 +448,7 @@ handle_flags() {
                     echo_yellow "This operation is not supported with brew"
                     exit 0
                 fi
-
+                set_package_manager
                 curl_installation
                 docker_installation
                 ;;
@@ -396,7 +472,8 @@ handle_flags() {
                     echo_yellow "This operation is not supported with brew"
                     exit 0
                 fi
-                
+
+                set_package_manager
                 curl_installation
                 helm_installation
                 exit 0
@@ -415,6 +492,7 @@ handle_flags() {
     shift $((OPTIND-1))
 
     check_root_and_exit
+    set_package_manager
 
     if [[ ${TILIX_CONFIG} == true ]]; then
         
