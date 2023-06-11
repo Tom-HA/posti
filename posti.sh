@@ -488,6 +488,7 @@ handle_flags() {
                 exit 0
                 ;;
             z)
+                set_package_manager
                 configure_zshrc
                 exit 0
                 ;;
