@@ -42,6 +42,7 @@ set_variables() {
     log="/tmp/posti.log"
     SUDO_USER=${SUDO_USER:=$USER}
     home_dir_path=$(grep ${SUDO_USER} /etc/passwd |awk -F ':' '{print $6}')
+    home_dir_path=${home_dir_path:=$HOME}
 
     # $r equals to $0 without '/' if exists and the script name suffix 
     r=$(sed -E "s|/?${0##*/}||" <<< $0)
@@ -289,9 +290,7 @@ configure_terminal() {
         chown ${SUDO_USER}:${SUDO_USER} ohmyzsh.sh
     fi
     chmod 755 ohmyzsh.sh
-    if [[ ${pkg_manager} != "brew" ]]; then
-        send_to_spinner "su ${SUDO_USER} -c ./ohmyzsh.sh" "Oh My Zsh installation"
-    fi
+    send_to_spinner "su ${SUDO_USER} -c ./ohmyzsh.sh" "Oh My Zsh installation"
     send_to_spinner "git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/themes/powerlevel10k" "powerlevel10k installation"
     send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
     send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
