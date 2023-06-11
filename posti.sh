@@ -308,8 +308,13 @@ configure_zshrc() {
         fi
     fi
 
-    sed -i "s|^ZSH_THEME=.*|ZSH_THEME=powerlevel10k/powerlevel10k|" ${home_dir_path}/.zshrc
-    sed -i "s|^plugins=.*|plugins=(git aws kubectl zsh-completions zsh-syntax-highlighting zsh-autosuggestions)|" ${home_dir_path}/.zshrc
+    if [[ ${pkg_manager} == "brew" ]]; then
+        sed -i.bck "s|^ZSH_THEME=.*|ZSH_THEME=powerlevel10k/powerlevel10k|" ${home_dir_path}/.zshrc
+        sed -i.bck "s|^plugins=.*|plugins=(git aws kubectl zsh-completions zsh-syntax-highlighting zsh-autosuggestions)|" ${home_dir_path}/.zshrc
+    else
+        sed -i "s|^ZSH_THEME=.*|ZSH_THEME=powerlevel10k/powerlevel10k|" ${home_dir_path}/.zshrc
+        sed -i "s|^plugins=.*|plugins=(git aws kubectl zsh-completions zsh-syntax-highlighting zsh-autosuggestions)|" ${home_dir_path}/.zshrc
+    fi
 
     if ! grep -q "alias k=" ${home_dir_path}/.zshrc; then
         echo 'alias k="kubectl"' >> ${home_dir_path}/.zshrc
