@@ -281,8 +281,9 @@ configure_terminal() {
         echo_yellow "Directory .oh-my-zsh already exists, use -f to overwrite the configuration"
         return 0
     fi
-
-    usermod -s /usr/bin/zsh ${SUDO_USER} &>> ${log}
+    if [[ ${pkg_manager} != "brew" ]]; then
+        usermod -s /usr/bin/zsh ${SUDO_USER} &>> ${log}
+    fi
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
     chown ${SUDO_USER}:${SUDO_USER} ohmyzsh.sh
     chmod 755 ohmyzsh.sh
