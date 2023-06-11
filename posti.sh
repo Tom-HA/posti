@@ -285,9 +285,13 @@ configure_terminal() {
         usermod -s /usr/bin/zsh ${SUDO_USER} &>> ${log}
     fi
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
-    chown ${SUDO_USER}:${SUDO_USER} ohmyzsh.sh
+    if [[ ${pkg_manager} != "brew" ]]; then
+        chown ${SUDO_USER}:${SUDO_USER} ohmyzsh.sh
+    fi
     chmod 755 ohmyzsh.sh
-    send_to_spinner "su ${SUDO_USER} -c ./ohmyzsh.sh" "Oh My Zsh installation"
+    if [[ ${pkg_manager} != "brew" ]]; then
+        send_to_spinner "su ${SUDO_USER} -c ./ohmyzsh.sh" "Oh My Zsh installation"
+    fi
     send_to_spinner "git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/themes/powerlevel10k" "powerlevel10k installation"
     send_to_spinner "git clone https://github.com/zsh-users/zsh-completions ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-completions" "zsh-completions installation" 
     send_to_spinner "git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting" "zsh-syntax-highlighting installation"
