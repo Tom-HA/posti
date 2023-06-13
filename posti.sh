@@ -42,6 +42,7 @@ set_variables() {
     log="/tmp/posti.log"
     SUDO_USER=${SUDO_USER:=$USER}
     home_dir_path=$(grep ${SUDO_USER} /etc/passwd |awk -F ':' '{print $6}')
+    home_dir_path=${home_dir_path:=$HOME}
 
     # $r equals to $0 without '/' if exists and the script name suffix 
     r=$(sed -E "s|/?${0##*/}||" <<< $0)
@@ -281,10 +282,13 @@ configure_terminal() {
         echo_yellow "Directory .oh-my-zsh already exists, use -f to overwrite the configuration"
         return 0
     fi
-
-    usermod -s /usr/bin/zsh ${SUDO_USER} &>> ${log}
+    if [[ ${pkg_manager} != "brew" ]]; then
+        usermod -s /usr/bin/zsh ${SUDO_USER} &>> ${log}
+    fi
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
-    chown ${SUDO_USER}:${SUDO_USER} ohmyzsh.sh
+    if [[ ${pkg_manager} != "brew" ]]; then
+        chown ${SUDO_USER}:${SUDO_USER} ohmyzsh.sh
+    fi
     chmod 755 ohmyzsh.sh
     send_to_spinner "su ${SUDO_USER} -c ./ohmyzsh.sh" "Oh My Zsh installation"
     send_to_spinner "git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:=${home_dir_path}/.oh-my-zsh/custom}/themes/powerlevel10k" "powerlevel10k installation"
@@ -304,8 +308,13 @@ configure_zshrc() {
         fi
     fi
 
-    sed -i "s|^ZSH_THEME=.*|ZSH_THEME=powerlevel10k/powerlevel10k|" ${home_dir_path}/.zshrc
-    sed -i "s|^plugins=.*|plugins=(git aws kubectl zsh-completions zsh-syntax-highlighting zsh-autosuggestions)|" ${home_dir_path}/.zshrc
+    if [[ ${pkg_manager} == "brew" ]]; then
+        sed -i.bck "s|^ZSH_THEME=.*|ZSH_THEME=powerlevel10k/powerlevel10k|" ${home_dir_path}/.zshrc
+        sed -i.bck "s|^plugins=.*|plugins=(git aws kubectl zsh-completions zsh-syntax-highlighting zsh-autosuggestions)|" ${home_dir_path}/.zshrc
+    else
+        sed -i "s|^ZSH_THEME=.*|ZSH_THEME=powerlevel10k/powerlevel10k|" ${home_dir_path}/.zshrc
+        sed -i "s|^plugins=.*|plugins=(git aws kubectl zsh-completions zsh-syntax-highlighting zsh-autosuggestions)|" ${home_dir_path}/.zshrc
+    fi
 
     if ! grep -q "alias k=" ${home_dir_path}/.zshrc; then
         echo 'alias k="kubectl"' >> ${home_dir_path}/.zshrc
@@ -479,6 +488,7 @@ handle_flags() {
                 exit 0
                 ;;
             z)
+                set_package_manager
                 configure_zshrc
                 exit 0
                 ;;
