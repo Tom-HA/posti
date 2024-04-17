@@ -2,7 +2,7 @@
 
 main() {
     set_variables
-    handle_flags "$@"
+    handle_arguments "$@"
     update_and_upgrade
     curl_installation
     code_installation
@@ -20,7 +20,6 @@ main() {
     configure_tilix
     docker_installation
     kubectl_installation
-    # minikube_installation
     helm_installation
     
     echo_green "Installation completed"
@@ -40,7 +39,7 @@ set_variables() {
     yellow=$(tput setaf 3)
     reset=$(tput sgr0)
     log="/tmp/posti.log"
-    SUDO_USER=${SUDO_USER:=$USER}
+    SUDO_USER=${SUDO_USER:=$(id -un)}
     home_dir_path=$(grep ${SUDO_USER} /etc/passwd |awk -F ':' '{print $6}')
     home_dir_path=${home_dir_path:=$HOME}
 
@@ -68,17 +67,17 @@ echo_green() {
 progress_spinner () {
 
     ## Loop until the PID of the last background process is not found
-    while ps aux |awk '{print $2}' |grep -E -o "$BPID" &> /dev/null; do
+    while kill -0 "$BPID" > /dev/null 2>&1; do
         # Print text with a spinner
         printf "\r%s in progress...  ${yellow}[|]${reset}" "$*"
         sleep 0.1
         printf "\r%s in progress...  ${yellow}[/]${reset}" "$*"
-	sleep 0.1
-	printf "\r%s in progress...  ${yellow}[-]${reset}" "$*"
-	sleep 0.1
-	printf "\r%s in progress...  ${yellow}[\\]${reset}" "$*"
-	sleep 0.1
-	printf "\r%s in progress...  ${yellow}[|]${reset}" "$*"
+        sleep 0.1
+        printf "\r%s in progress...  ${yellow}[-]${reset}" "$*"
+        sleep 0.1
+        printf "\r%s in progress...  ${yellow}[\\]${reset}" "$*"
+        sleep 0.1
+        printf "\r%s in progress...  ${yellow}[|]${reset}" "$*"
     done
 
     # Print a new line outside the loop so it will not interrupt with the it
@@ -87,27 +86,27 @@ progress_spinner () {
 }
 
 set_package_manager() {
-    if command -v apt-get &> /dev/null; then
+    if command -v apt-get > /dev/null 2>&1; then
         pkg_manager="apt-get"
         pkg_manager_args=("install" "-y")
         echo_white "Detected package manager: apt"
     
-    elif command -v dnf &> /dev/null; then
+    elif command -v dnf > /dev/null 2>&1; then
         pkg_manager="dnf"
         pkg_manager_args=("install" "-y")
         echo_white "Detected package manager: dnf"
 
-    elif command -v brew &> /dev/null; then
+    elif command -v brew > /dev/null 2>&1; then
         pkg_manager="brew"
         pkg_manager_args=("install" "-y")
         echo_white "Detected package manager: brew"
 
 
-    elif command -v yay &> /dev/null; then
+    elif command -v yay > /dev/null 2>&1; then
         pkg_manager="yay"
         pkg_manager_args=("-S" "--noconfirm")
         read -sp "Please enter [sudo] password: " sudo_pass
-        if ! runuser -l ${SUDO_USER} -c "sudo -S echo test &> /dev/null <<< $(echo ${sudo_pass})"; then
+        if ! runuser -l ${SUDO_USER} -c "sudo -S echo test > /dev/null 2>&1 <<< $(echo ${sudo_pass})"; then
             echo_red "Bad password"
             exit 1
         fi
@@ -124,13 +123,13 @@ send_to_spinner() {
     if [[ -z ${1} ]] || [[ -z ${2} ]]; then
         echo_red "Function 'send_to_spinner' didn't receive sufficient arguments"
     fi
-    bash -c "${1}" &>> ${log} &
+    bash -c "${1}" >> ${log} 2>&1 &
     BPID=$!
     progress_spinner "${2}"
     wait ${BPID}
     status=$?
     if [[ ${status} -ne 0 ]]; then
-        echo_red "Failed to perform ${1}"
+        echo_red "Failed to execute ${1}"
         exit 1
     fi
 }
@@ -151,7 +150,7 @@ update_and_upgrade(){
 }
 
 curl_installation() { 
-    if ! command -v curl &> /dev/null; then
+    if ! command -v curl > /dev/null 2>&1; then
         send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} curl" "curl installation"
     fi
 }
@@ -163,7 +162,7 @@ packages_installation() {
     arch_pkgs=(openssh firefox vlc discord docker)
 
     for pkg in "${generic_pkgs[@]}"; do
-        if command -v ${pkg} &> /dev/null; then
+        if command -v ${pkg} > /dev/null 2>&1; then
             continue
         fi
         send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} ${pkg}" "${pkg} installation"
@@ -177,7 +176,7 @@ packages_installation() {
         send_to_spinner "apt-get update" "System update"
 
         for pkg in "${ubuntu_pkgs[@]}"; do
-            if command -v ${pkg} &> /dev/null; then
+            if command -v ${pkg} > /dev/null 2>&1; then
                 continue
             fi
             send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} ${pkg}" "${pkg} installation"
@@ -185,7 +184,7 @@ packages_installation() {
 
     elif [[ ${pkg_manager} == "yay" ]]; then
         for pkg in "${arch_pkgs[@]}"; do
-            if command -v ${pkg} &> /dev/null; then
+            if command -v ${pkg} > /dev/null 2>&1; then
                 continue
             fi
             send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} ${pkg}" "${pkg} installation"
@@ -198,7 +197,7 @@ packages_installation() {
 }
 
 code_installation() {
-    if command -v code &> /dev/null; then
+    if command -v code > /dev/null 2>&1; then
         return 0
     fi
 
@@ -222,7 +221,7 @@ code_installation() {
 
 
     # curl h -L --silent https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
-    # install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/ &>> ${log}
+    # install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/ >> ${log} 2>&1
     # echo "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/vscode stable main" > /etc/apt/sources.list.d/vscode.list
     # send_to_spinner "apt-get update" "System update"
     # send_to_spinner "apt-get install -y code" "Installing Visual Studio Code"
@@ -231,7 +230,7 @@ code_installation() {
 }
 
 snap_installation() {
-    if command -v snap &> /dev/null; then
+    if command -v snap > /dev/null 2>&1; then
         echo_white "Snap already installed"
 	return 0
     fi
@@ -249,17 +248,17 @@ docker_installation() {
     curl --silent -L -o docker_installation.sh https://get.docker.com
     send_to_spinner "sh docker_installation.sh" "Docker installation"
     usermod -aG docker ${SUDO_USER}
-    mv ${relative_path}/docker_installation.sh tmp/ &>> ${log}
+    mv ${relative_path}/docker_installation.sh tmp/ >> ${log} 2>&1
     echo_green "Docker installation finished successfully"
 }
 
 kubectl_installation() {
-    if command -v kubectl &> /dev/null; then
+    if command -v kubectl > /dev/null 2>&1; then
         return 0
     fi
 
     echo_white "Installing kubectl"
-    curl -sLO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" &>> ${log}
+    curl -sLO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" >> ${log} 2>&1
     if ! [[ -s ./kubectl ]]; then
         echo_red "Failed to download kubectl"
         exit 1
@@ -272,7 +271,7 @@ kubectl_installation() {
 
 configure_terminal() {
 
-    if ! command -v zsh &> /dev/null; then
+    if ! command -v zsh > /dev/null 2>&1; then
         send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} zsh" "zsh installation"
     fi
 
@@ -283,7 +282,7 @@ configure_terminal() {
         return 0
     fi
     if [[ ${pkg_manager} != "brew" ]]; then
-        usermod -s /usr/bin/zsh ${SUDO_USER} &>> ${log}
+        usermod -s /usr/bin/zsh ${SUDO_USER} >> ${log} 2>&1
     fi
     curl --silent -L -o ohmyzsh.sh https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh
     if [[ ${pkg_manager} != "brew" ]]; then
@@ -332,7 +331,7 @@ configure_zshrc() {
         echo 'alias t="terraform"' >> ${home_dir_path}/.zshrc
     fi
 
-    if command -v screenfetch &> /dev/null; then
+    if command -v screenfetch > /dev/null 2>&1; then
         if ! grep -q "screenfetch -E" ${home_dir_path}/.zshrc; then
             echo "screenfetch -E" >> ${home_dir_path}/.zshrc
         fi
@@ -342,20 +341,20 @@ configure_zshrc() {
 
 configure_tilix() {
 
-    if ! command -v tilix &> /dev/null; then
+    if ! command -v tilix > /dev/null 2>&1; then
         return 0
     fi
     
-    if ! command -v dconf &> /dev/null; then
+    if ! command -v dconf > /dev/null 2>&1; then
         send_to_spinner "${pkg_manager} ${pkg_manager_args[*]} dconf-cli" "dconf-cli installation"
     fi
 
     # su ${SUDO_USER} -c "gsettings set org.gnome.desktop.default-applications.terminal exec tilix"
-    if command -v update-alternatives &> /dev/null; then
+    if command -v update-alternatives > /dev/null 2>&1; then
         tilix_alternative="$(update-alternatives --list x-terminal-emulator |grep tilix)"
 
         echo_white "Setting Tilix as the default terminal"
-        if ! update-alternatives --set x-terminal-emulator ${tilix_alternative:?} &>> ${log}; then
+        if ! update-alternatives --set x-terminal-emulator ${tilix_alternative:?} >> ${log} 2>&1; then
             echo_red "could not set Tilix as the default terminal"
             exit 1
         fi
@@ -366,7 +365,7 @@ configure_tilix() {
         exit 1
     fi
     export tlilx_dconf_full_path="$(readlink -f ${relative_path}/config/tilix.dconf)"
-    runuser -l ${SUDO_USER} -c "exec dbus-run-session -- bash -c 'dconf load /com/gexperts/Tilix/ < ${tlilx_dconf_full_path}'" &>> ${log}
+    runuser -l ${SUDO_USER} -c "exec dbus-run-session -- bash -c 'dconf load /com/gexperts/Tilix/ < ${tlilx_dconf_full_path}'" >> ${log} 2>&1
 
     if ! grep -q 'source /etc/profile.d/vte.sh' ${home_dir_path}/.zshrc; then
         printf '
@@ -382,12 +381,12 @@ fi
 install_fonts() {
 
     if ! [[ -d /usr/share/fonts/'Droid Sans Mono' ]]; then
-        mkdir -p /usr/share/fonts/'Droid Sans Mono' &>> ${log}
+        mkdir -p /usr/share/fonts/'Droid Sans Mono' >> ${log} 2>&1
     fi 
     send_to_spinner "curl -f -s -L https://github.com/ryanoasis/nerd-fonts/raw/master/patched-fonts/DroidSansMono/complete/Droid%20Sans%20Mono%20Nerd%20Font%20Complete%20Mono.otf -o /usr/share/fonts/Droid\ Sans\ Mono/Droid\ Sans\ Mono\ for\ Powerline\ Nerd\ Font\ Complete.otf" "Droid Sans Mono font installation"
 
     if ! [[ -d /usr/share/fonts/MesloLGS ]]; then
-        mkdir -p /usr/share/fonts/MesloLGS &>> ${log}
+        mkdir -p /usr/share/fonts/MesloLGS >> ${log} 2>&1
     fi 
     send_to_spinner "curl -f -s -L https://github.com/romkatv/powerlevel10k-media/raw/master/MesloLGS%20NF%20Regular.ttf -o /usr/share/fonts/MesloLGS/MesloLGS\ NF\ Regular.ttf" "MesloLGS NF Regular font installation"
 
@@ -397,7 +396,7 @@ install_fonts() {
 configre_vscode_fonts() {
     echo_white "Configuring VScode fonts"
 
-    if ! command -v code &> /dev/null; then
+    if ! command -v code > /dev/null 2>&1; then
         return 0
     fi 
 
@@ -414,24 +413,47 @@ configre_vscode_fonts() {
 
 }
 
-minikube_installation() {
-
-    send_to_spinner "curl --silent -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl" "Kubectl installation"
-    chmod +x kubectl
-    mv kubectl /usr/local/bin/kubectl
-
-    send_to_spinner "curl --silent -Lo minikube https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64" "Minikube installation"
-    chmod +x minikube
-    mv minikube /usr/local/bin/minikube
-
-    echo_green "Minikube installation finished successfully"
-}
-
 helm_installation() {
     curl -L --silent https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 -o get-helm-3
     send_to_spinner "bash get-helm-3" "Helm 3 installation"
-    mv ${relative_path}/get-helm-3 /tmp/ &>> ${log}
+    mv ${relative_path}/get-helm-3 /tmp/ >> ${log} 2>&1
     echo_green "Helm installation finished successfully"
+}
+
+install_brew() {
+    return 0
+    brew_installation_script="$(curl -L --silent https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    export NONINTERACTIVE=1
+    send_to_spinner "/bin/bash -c \"${brew_installation_script}\"" "Brew installation"
+    if ! command -v brew > /dev/null 2>&1; then
+        echo_red "Failed to install Brew"
+        exit 1
+    fi
+    echo_green "Brew installation finished successfully"
+}
+
+install_all() {
+    update_and_upgrade
+    curl_installation
+    code_installation
+    packages_installation
+
+    if [[ ${pkg_manager} == "brew" ]]; then
+        echo_green "Installation completed"
+        exit 0
+    fi
+
+    install_fonts
+    configre_vscode_fonts
+    configure_terminal
+    configure_zshrc
+    configure_tilix
+    docker_installation
+    kubectl_installation
+    helm_installation
+    
+    echo_green "Installation completed"
+    exit 0
 }
 
 print_help() {
@@ -449,9 +471,76 @@ Usage: ${0##*/} <argumant>
     
 }
 
+
+install_packages() {
+    packages=(
+        docker
+        kubectl
+        kubectx
+        k9s
+        helm
+        tilt
+        crane
+        poetry
+        pyenv
+        bruno
+    )
+
+    cask_packages=(
+        bruno
+        maccy
+        visual-studio-code
+        iterm2
+    )
+
+    for pkg in "${packages[@]}"; do
+        send_to_spinner "brew install ${pkg}" "Installing ${pkg}"
+    done
+
+    # /usr/sbin/softwareupdate --install-rosetta --agree-to-license
+}
+
+
+handle_arguments() {
+    arg=${1:?}
+    case ${arg} in
+        install-all)
+            install_all
+            exit 0
+            ;;
+
+        install-packages)
+            curl_installation
+            install_brew
+            install_packages
+            exit 0
+            ;;
+        help)
+            print_help
+            exit 0
+            ;;
+        configure-terminal)
+            TERMINAL_CONFIG=true
+            shift
+            ;;
+        *)
+            echo_yellow "Invalid argument"
+            print_help
+            exit 1
+            ;;
+
+    
+
+    esac
+}
+
 handle_flags() {
-    while getopts ":hdfHtTz" o; do
+    while getopts ":hdafHtTz" o; do
         case "${o}" in
+            a)
+                install_all
+                exit 0
+                ;;
             d)
                 if [[ ${pkg_manager} == "brew" ]]; then
                     echo_yellow "This operation is not supported with brew"
@@ -460,6 +549,7 @@ handle_flags() {
                 set_package_manager
                 curl_installation
                 docker_installation
+                exit 0
                 ;;
             h)
                 print_help
