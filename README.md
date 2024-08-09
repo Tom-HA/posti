@@ -28,7 +28,7 @@ sudo bash posti.sh
 Please note that this script needs to be executed with root privilages
 
 ```sh
-Usage: posti.sh <argumentnt>
+Usage: posti.sh <argument>
 
     -d      Install docker
     -f      Force oh-my-zsh installation
