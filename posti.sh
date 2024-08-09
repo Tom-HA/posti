@@ -436,7 +436,7 @@ helm_installation() {
 
 print_help() {
     printf "
-Usage: ${0##*/} <argumant>
+Usage: ${0##*/} <argumentnt>
 
     -d      Install docker
     -f      Force oh-my-zsh installation
