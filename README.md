@@ -1,5 +1,6 @@
 # posti
-New post installer for Ubuntu and Fedora based distributions
+New post distro installation config script for Ubuntu and Fedora based distributions.  
+This script is also used to customize your shell (MacOS supported).
 
 ## Installation
 
